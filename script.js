@@ -47,6 +47,10 @@ function screenToWorld(x, y) {
     return { x: (x - width / 2) / camera.zoom - camera.x, y: (y - height / 2) / camera.zoom - camera.y };
 }
 
+function worldToScreen(x, y) {
+    return { x: (x + camera.x) * camera.zoom + width / 2, y: (y + camera.y) * camera.zoom + height / 2 };
+}
+
 class Atom {
     constructor(elementData, x, y) {
         this.type = elementData.symbol;
@@ -274,6 +278,12 @@ function createEffect(x, y, color, count) {
     }
 }
 
+// Эффект под курсором — видно всегда, даже при большом зуме/панорамировании
+function createFeedbackEffect(color, count) {
+    const w = screenToWorld(currentMouseX, currentMouseY);
+    createEffect(w.x, w.y, color, count);
+}
+
 function updateSimulation() {
     const kelvin = parseFloat(tempSlider.value);
 
@@ -311,11 +321,8 @@ function getSelectedAtoms() {
     const x2 = Math.max(selectionStart.x, selectionEnd.x);
     const y2 = Math.max(selectionStart.y, selectionEnd.y);
     
-    return atoms.filter(a => {
-        const dx = (a.x + camera.x) * camera.zoom + width / 2;
-        const dy = (a.y + camera.y) * camera.zoom + height / 2;
-        return dx >= x1 && dx <= x2 && dy >= y1 && dy <= y2;
-    });
+    // Мировые координаты: выделение «держится» на месте при зуме и панорамировании
+    return atoms.filter(a => a.x >= x1 && a.x <= x2 && a.y >= y1 && a.y <= y2);
 }
 
 function draw() {
@@ -377,12 +384,14 @@ function draw() {
         ctx.globalAlpha = 1.0;
     }
 
-    // Selection rectangle (always visible when selection exists)
+    // Selection rectangle (мировые координаты -> экран, поэтому масштабируется при зуме)
     if (selectionStart && selectionEnd && (selectionStart.x !== selectionEnd.x || selectionStart.y !== selectionEnd.y)) {
-        const x = Math.min(selectionStart.x, selectionEnd.x);
-        const y = Math.min(selectionStart.y, selectionEnd.y);
-        const w = Math.abs(selectionEnd.x - selectionStart.x);
-        const h = Math.abs(selectionEnd.y - selectionStart.y);
+        const p1 = worldToScreen(selectionStart.x, selectionStart.y);
+        const p2 = worldToScreen(selectionEnd.x, selectionEnd.y);
+        const x = Math.min(p1.x, p2.x);
+        const y = Math.min(p1.y, p2.y);
+        const w = Math.abs(p2.x - p1.x);
+        const h = Math.abs(p2.y - p1.y);
         ctx.fillStyle = 'rgba(0, 255, 150, 0.1)';
         ctx.fillRect(x, y, w, h);
         ctx.strokeStyle = 'rgba(0, 255, 150, 0.6)';
@@ -444,6 +453,8 @@ function populateGrid() {
     });
 }
 
+function filterElements() { populateGrid(); }
+
 canvas.addEventListener('mousedown', (e) => {
     const worldPos = screenToWorld(e.clientX, e.clientY);
 
@@ -451,10 +462,10 @@ canvas.addEventListener('mousedown', (e) => {
         camera.isDragging = true;
         camera.lastMouseX = e.clientX; camera.lastMouseY = e.clientY;
     } else if (e.button === 0 && e.ctrlKey) {
-        // Start selection
+        // Start selection (в мировых координатах — выделение привязано к миру)
         isSelecting = true;
-        selectionStart = { x: e.clientX, y: e.clientY };
-        selectionEnd = { x: e.clientX, y: e.clientY };
+        selectionStart = screenToWorld(e.clientX, e.clientY);
+        selectionEnd = { x: selectionStart.x, y: selectionStart.y };
     } else if (e.button === 0) {
         // Clear selection on regular click
         clearSelection();
@@ -462,6 +473,7 @@ canvas.addEventListener('mousedown', (e) => {
         // Confirm pending paste if clicking elsewhere
         if (pendingPaste) {
             confirmPaste();
+            return;
         }
         
         // Find if we clicked on an atom
@@ -490,13 +502,18 @@ window.addEventListener('mousemove', (e) => {
         camera.y += (e.clientY - camera.lastMouseY) / camera.zoom;
         camera.lastMouseX = e.clientX; camera.lastMouseY = e.clientY;
     } else if (isSelecting) {
-        selectionEnd = { x: e.clientX, y: e.clientY };
+        selectionEnd = screenToWorld(e.clientX, e.clientY);
     } else if (draggedAtom) {
         const worldPos = screenToWorld(e.clientX, e.clientY);
         draggedAtom.x = worldPos.x;
         draggedAtom.y = worldPos.y;
         draggedAtom.vx = 0;
         draggedAtom.vy = 0;
+    } else if (pendingPaste) {
+        // «Призрак» вставки следует за курсором до клика
+        const worldPos = screenToWorld(e.clientX, e.clientY);
+        pendingPasteOffset.x = worldPos.x - pendingPaste.centerX;
+        pendingPasteOffset.y = worldPos.y - pendingPaste.centerY;
     }
 });
 
@@ -510,20 +527,29 @@ window.addEventListener('mouseup', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
-    if (e.key === ' ') {
+    // Не перехватываем клавиши, когда фокус в поле ввода (поиск элементов)
+    const tag = e.target ? e.target.tagName : '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+    if (e.code === 'Space') {
         e.preventDefault();
         const worldPos = screenToWorld(currentMouseX, currentMouseY);
         injectAtom(selectedElementSymbol, worldPos.x, worldPos.y);
     }
-    if (e.ctrlKey && e.key === 'c') {
+
+    // e.code не зависит от раскладки: работает и на русской ЙЦУКЕН, и на любой другой
+    const isCopy = e.ctrlKey && (e.code === 'KeyC' || e.key === 'c' || e.key === 'с');
+    const isPaste = e.ctrlKey && (e.code === 'KeyV' || e.key === 'v' || e.key === 'в');
+
+    if (isCopy) {
         e.preventDefault();
         copySelection();
     }
-    if (e.ctrlKey && e.key === 'v') {
+    if (isPaste) {
         e.preventDefault();
         pasteSelection();
     }
-    if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (e.code === 'Delete' || e.code === 'Backspace') {
         const selected = getSelectedAtoms();
         if (selected.length > 0) {
             e.preventDefault();
@@ -531,7 +557,7 @@ window.addEventListener('keydown', (e) => {
             bonds = bonds.filter(b => !selectedSet.has(b.a) && !selectedSet.has(b.b));
             atoms = atoms.filter(a => !selectedSet.has(a));
             clearSelection();
-            createEffect(0, 0, '#ff0000', 3);
+            createFeedbackEffect('#ff0000', 5);
         }
     }
 });
@@ -568,20 +594,25 @@ function copySelection() {
                 count: b.count
             }))
     };
-    createEffect(0, 0, '#00ff00', 3);
+    createFeedbackEffect('#00ff00', 3);
 }
 
 function pasteSelection() {
-    if (!clipboardAtoms) return;
-    
-    const offsetX = (Math.random() - 0.5) * 20;
-    const offsetY = (Math.random() - 0.5) * 20;
-    
+    if (!clipboardAtoms || clipboardAtoms.atoms.length === 0) return;
+
+    // Центр скопированной молекулы — чтобы «призрак» появился под курсором
+    let cx = 0, cy = 0;
+    clipboardAtoms.atoms.forEach(a => { cx += a.x; cy += a.y; });
+    cx /= clipboardAtoms.atoms.length;
+    cy /= clipboardAtoms.atoms.length;
+
     pendingPaste = {
+        centerX: cx,
+        centerY: cy,
         atoms: clipboardAtoms.atoms.map(aData => {
             const el = PERIODIC_TABLE.find(e => e.symbol === aData.type);
             if (el) {
-                const atom = new Atom(el, aData.x + offsetX, aData.y + offsetY);
+                const atom = new Atom(el, aData.x, aData.y);
                 atom.vx = 0; atom.vy = 0;
                 return atom;
             }
@@ -589,9 +620,11 @@ function pasteSelection() {
         }).filter(a => a !== null),
         bonds: clipboardAtoms.bonds
     };
-    pendingPasteOffset = { x: 0, y: 0 };
-    
-    createEffect(0, 0, '#ff00ff', 3);
+
+    const mouseWorld = screenToWorld(currentMouseX, currentMouseY);
+    pendingPasteOffset = { x: mouseWorld.x - cx, y: mouseWorld.y - cy };
+
+    createFeedbackEffect('#ff00ff', 5);
 }
 
 function confirmPaste() {
@@ -613,7 +646,7 @@ function confirmPaste() {
     
     pendingPaste = null;
     pendingPasteOffset = { x: 0, y: 0 };
-    createEffect(0, 0, '#00ff00', 3);
+    createFeedbackEffect('#00ff00', 3);
 }
 
 // Scene serialization
@@ -672,7 +705,7 @@ function saveScene() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    createEffect(0, 0, '#00f2ff', 5);
+    createFeedbackEffect('#00f2ff', 5);
 }
 
 function loadScene() {
@@ -685,7 +718,7 @@ function loadScene() {
             const reader = new FileReader();
             reader.onload = (ev) => {
                 deserializeScene(ev.target.result);
-                createEffect(0, 0, '#00ff00', 5);
+                createFeedbackEffect('#00ff00', 5);
             };
             reader.readAsText(file);
         }
@@ -697,7 +730,7 @@ function copyScene() {
     const data = serializeScene();
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(data).then(() => {
-            createEffect(0, 0, '#ffff00', 5);
+            createFeedbackEffect('#ffff00', 5);
         });
     }
 }
@@ -706,7 +739,7 @@ function pasteScene() {
     if (navigator.clipboard && navigator.clipboard.readText) {
         navigator.clipboard.readText().then((text) => {
             deserializeScene(text);
-            createEffect(0, 0, '#ff00ff', 5);
+            createFeedbackEffect('#ff00ff', 5);
         });
     }
 }
