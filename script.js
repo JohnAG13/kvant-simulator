@@ -417,6 +417,7 @@ function removeAtomAt(x, y) {
     }
 }
 function resetSim() { atoms = []; bonds = []; effects = []; camera.x = 0; camera.y = 0; camera.zoom = 1; }
+function toggleMenu() { uiContainer.classList.toggle('minimized'); }
 function toggleInstructions() {
     const panel = document.getElementById('instructions-panel');
     const content = document.getElementById('instructions-content');
