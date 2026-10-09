@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kvant</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <button id="toggle-menu" onclick="toggleMenu()">☰</button>
+    <div id="ui-container">
+        <div class="header">
+            <h1>Kvant</h1>
+            <button class="minimize-btn" onclick="toggleMenu()" title="Minimize panel">✕</button>
+        </div>
+        <div class="controls">
+            <div class="slider-panel">
+                <label for="temp-slider">Temperature (K)</label>
+                <input type="range" id="temp-slider" min="0" max="1000" value="293">
+                <span id="temp-value">293 K</span>
+            </div>
+            <div class="stats">
+                <p>Atoms: <span id="atom-count">0</span></p>
+                <p>Bonds: <span id="bond-count">0</span></p>
+            </div>
+
+            <div class="element-selector">
+                <h3>Select Element</h3>
+                <div class="quick-buttons">
+                    <button onclick="setSelectedElement('H')">H</button>
+                    <button onclick="setSelectedElement('O')">O</button>
+                    <button onclick="setSelectedElement('C')">C</button>
+                    <button onclick="setSelectedElement('N')">N</button>
+                </div>
+                <div id="elements-list-container">
+                    <input type="text" id="element-search" placeholder="Search..." oninput="filterElements()">
+                    <div id="elements-grid" class="sidebar-grid"></div>
+                </div>
+            </div>
+
+            <div class="instructions" id="instructions-panel">
+                <div class="instructions-header" onclick="toggleInstructions()">
+                    <span>Instructions</span>
+                    <span class="instructions-toggle" id="instructions-toggle">▼</span>
+                </div>
+                <div class="instructions-content" id="instructions-content">
+                    <p>Selected: <strong id="current-selected-label">H</strong></p>
+                    <p>Left Click: Add / Drag Atom</p>
+                    <p>Ctrl+Click: Select area</p>
+                    <p>Ctrl+C / Ctrl+V: Copy / Paste</p>
+                    <p>Space: Add at cursor</p>
+                    <p>Right Click: Remove</p>
+                    <p>Scroll: Zoom | Middle: Pan</p>
+                </div>
+            </div>
+
+            <button class="reset-btn" onclick="resetSim()">Reset simulation</button>
+
+            <div class="scene-controls">
+                <button class="scene-btn" onclick="saveScene()" title="Save scene">💾 Save</button>
+                <button class="scene-btn" onclick="loadScene()" title="Load scene">📂 Load</button>
+                <button class="scene-btn" onclick="copyScene()" title="Copy to clipboard">📋 Copy</button>
+                <button class="scene-btn" onclick="pasteScene()" title="Paste from clipboard">📥 Paste</button>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="simCanvas"></canvas>
+    <script src="elements.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
