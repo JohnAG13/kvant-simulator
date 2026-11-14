@@ -11,7 +11,7 @@ const selectedLabel = document.getElementById('current-selected-label');
 
 let atoms = [];
 let bonds = [];
-let effects = []; // Sparkles and flashes
+let effects = []; // Іскри та спалахи
 let width, height;
 let selectedElementSymbol = 'H';
 
@@ -23,10 +23,10 @@ let selectionStart = null;
 let selectionEnd = null;
 let isSelecting = false;
 let clipboardAtoms = null;
-let pendingPaste = null; // Atoms waiting to be placed
+let pendingPaste = null; // Атоми, що очікують розміщення
 let pendingPasteOffset = { x: 0, y: 0 };
 
-// Physical constants
+// Фізичні константи
 const BOND_DISTANCE_FACTOR = 1.1;
 const BONDING_RADIUS_MUL = 1.3;
 const SPRING_CONSTANT = 0.1;
@@ -77,12 +77,12 @@ class Atom {
         const kelvin = parseFloat(tempSlider.value);
         const tempFactor = kelvin / 300;
 
-        // Brownian
+        // Броунівський рух
         const brownian = tempFactor * 0.4;
         this.vx += (Math.random() - 0.5) * brownian;
         this.vy += (Math.random() - 0.5) * brownian;
 
-        // Speed limit
+        // Обмеження швидкості
         const limit = 2 + tempFactor * 20;
         const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
         if (speed > limit) { this.vx *= 0.9; this.vy *= 0.9; }
@@ -150,7 +150,7 @@ class Bond {
     }
 }
 
-// Spatial grid for O(n) neighbor lookups
+// Просторова сітка для пошуку сусідів за O(n)
 const GRID_CELL_SIZE = 100;
 let spatialGrid = {};
 
@@ -233,9 +233,9 @@ function tryCreateBond(a, b) {
             bonds.push(new Bond(a, b));
             createEffect((a.x + b.x) / 2, (a.y + b.y) / 2, '#fff', 3);
         } else {
-            // ADVANCED OXIDATION / SUBSTITUTION
+            // РОЗШИРЕНЕ ОКИСЛЕННЯ / ЗАМІЩЕННЯ
             const kelvin = parseFloat(tempSlider.value);
-            if (kelvin > 450) { // Activation energy
+            if (kelvin > 450) { // Енергія активації
                 if (aFree > 0) attemptReaction(a, b);
                 else if (bFree > 0) attemptReaction(b, a);
             }
@@ -249,15 +249,15 @@ function attemptReaction(attacker, target) {
         const victim = bondToBreak.a === target ? bondToBreak.b : bondToBreak.a;
         if (victim === attacker) continue;
 
-        // Oxidation Logic: More electronegative atom kicks out the less EN one
+        // Логіка окислення: більш електронегативний атом витісняє менш електронегативний
         const enDifference = attacker.en - victim.en;
         if (enDifference > 0.7) {
             bonds = bonds.filter(b => b !== bondToBreak);
-            // Form new bond, often double if it's Oxygen-Carbon
+            // Утворити новий зв'язок, часто подвійний, якщо це Оксиген-Карбон
             let newCount = (attacker.type === 'O' && target.type === 'C' && attacker.valence >= 2 && target.valence - (target.getOccupiedValence()) >= 2) ? 2 : 1;
             bonds.push(new Bond(attacker, target, newCount));
 
-            // Energy release (Heat/Flash)
+            // Виділення енергії (Тепло/Спалах)
             createEffect(target.x, target.y, '#ff4d00', 15);
             const kick = 5 + enDifference * 5;
             victim.vx += (Math.random() - 0.5) * kick;
@@ -278,7 +278,7 @@ function createEffect(x, y, color, count) {
     }
 }
 
-// Эффект под курсором — видно всегда, даже при большом зуме/панорамировании
+// Ефект під курсором — видно завжди, навіть при великому зумі/панорамуванні
 function createFeedbackEffect(color, count) {
     const w = screenToWorld(currentMouseX, currentMouseY);
     createEffect(w.x, w.y, color, count);
@@ -287,14 +287,14 @@ function createFeedbackEffect(color, count) {
 function updateSimulation() {
     const kelvin = parseFloat(tempSlider.value);
 
-    // Effects update
+    // Оновлення ефектів
     effects = effects.filter(e => {
         e.x += e.vx; e.y += e.vy; e.life -= 0.05;
         return e.life > 0;
     });
 
     for (let s = 0; s < 6; s++) {
-        // Bond thermal stress
+        // Термічне напруження зв'язку
         for (let i = bonds.length - 1; i >= 0; i--) {
             bonds[i].update();
             const stress = (kelvin / 2000) * (0.005 / (bonds[i].count ** 2));
@@ -321,14 +321,14 @@ function getSelectedAtoms() {
     const x2 = Math.max(selectionStart.x, selectionEnd.x);
     const y2 = Math.max(selectionStart.y, selectionEnd.y);
     
-    // Мировые координаты: выделение «держится» на месте при зуме и панорамировании
+    // Світові координати: виділення «тримається» на місці при зумі та панорамуванні
     return atoms.filter(a => a.x >= x1 && a.x <= x2 && a.y >= y1 && a.y <= y2);
 }
 
 function draw() {
     ctx.clearRect(0, 0, width, height);
 
-    // Grid
+    // Сітка
     const gz = 100 * camera.zoom;
     const ox = (camera.x * camera.zoom + width / 2) % gz;
     const oy = (camera.y * camera.zoom + height / 2) % gz;
@@ -338,7 +338,7 @@ function draw() {
 
     bonds.forEach(b => b.draw());
     
-    // Draw atoms with selection highlight
+    // Малювання атомів з підсвічуванням виділення
     const hasSelection = selectionStart && selectionEnd && (selectionStart.x !== selectionEnd.x || selectionStart.y !== selectionEnd.y);
     const selected = hasSelection ? getSelectedAtoms() : [];
     const pendingIndices = pendingPaste ? pendingPaste.atoms.map(a => atoms.indexOf(a)) : [];
@@ -366,7 +366,7 @@ function draw() {
         }
     });
 
-    // Pending paste ghost
+    // Привид відкладеної вставки
     if (pendingPaste) {
         ctx.globalAlpha = 0.4;
         pendingPaste.atoms.forEach(a => {
@@ -384,7 +384,7 @@ function draw() {
         ctx.globalAlpha = 1.0;
     }
 
-    // Selection rectangle (мировые координаты -> экран, поэтому масштабируется при зуме)
+    // Прямокутник виділення (світові координати -> екран, тому масштабується при зумі)
     if (selectionStart && selectionEnd && (selectionStart.x !== selectionEnd.x || selectionStart.y !== selectionEnd.y)) {
         const p1 = worldToScreen(selectionStart.x, selectionStart.y);
         const p2 = worldToScreen(selectionEnd.x, selectionEnd.y);
@@ -401,7 +401,7 @@ function draw() {
         ctx.setLineDash([]);
     }
 
-    // Effects
+    // Ефекти
     effects.forEach(e => {
         const ex = (e.x + camera.x) * camera.zoom + width / 2;
         const ey = (e.y + camera.y) * camera.zoom + height / 2;
@@ -412,7 +412,7 @@ function draw() {
     ctx.globalAlpha = 1.0;
 }
 
-// REST OF UI (unchanged logic)
+// РЕШТА ІНТЕРФЕЙСУ (логіка без змін)
 function injectAtom(symbol, x, y) {
     const data = PERIODIC_TABLE.find(e => e.symbol === symbol);
     if (!data) return;
@@ -462,21 +462,21 @@ canvas.addEventListener('mousedown', (e) => {
         camera.isDragging = true;
         camera.lastMouseX = e.clientX; camera.lastMouseY = e.clientY;
     } else if (e.button === 0 && e.ctrlKey) {
-        // Start selection (в мировых координатах — выделение привязано к миру)
+        // Початок виділення (у світових координатах — виділення прив'язане до світу)
         isSelecting = true;
         selectionStart = screenToWorld(e.clientX, e.clientY);
         selectionEnd = { x: selectionStart.x, y: selectionStart.y };
     } else if (e.button === 0) {
-        // Clear selection on regular click
+        // Очистити виділення при звичайному кліку
         clearSelection();
         
-        // Confirm pending paste if clicking elsewhere
+        // Підтвердити відкладену вставку, якщо клікнути в іншому місці
         if (pendingPaste) {
             confirmPaste();
             return;
         }
         
-        // Find if we clicked on an atom
+        // Перевірити, чи клікнули ми на атом
         let found = false;
         for (let i = atoms.length - 1; i >= 0; i--) {
             const a = atoms[i];
@@ -510,7 +510,7 @@ window.addEventListener('mousemove', (e) => {
         draggedAtom.vx = 0;
         draggedAtom.vy = 0;
     } else if (pendingPaste) {
-        // «Призрак» вставки следует за курсором до клика
+        // «Привид» вставки слідує за курсором до кліку
         const worldPos = screenToWorld(e.clientX, e.clientY);
         pendingPasteOffset.x = worldPos.x - pendingPaste.centerX;
         pendingPasteOffset.y = worldPos.y - pendingPaste.centerY;
@@ -522,12 +522,12 @@ window.addEventListener('mouseup', (e) => {
     draggedAtom = null;
     if (isSelecting && e.button === 0) {
         isSelecting = false;
-        // Selection complete - could add visual feedback here
+        // Виділення завершено — тут можна додати візуальний фідбек
     }
 });
 
 window.addEventListener('keydown', (e) => {
-    // Не перехватываем клавиши, когда фокус в поле ввода (поиск элементов)
+    // Не перехоплюємо клавіші, коли фокус у полі введення (пошук елементів)
     const tag = e.target ? e.target.tagName : '';
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
@@ -537,7 +537,7 @@ window.addEventListener('keydown', (e) => {
         injectAtom(selectedElementSymbol, worldPos.x, worldPos.y);
     }
 
-    // e.code не зависит от раскладки: работает и на русской ЙЦУКЕН, и на любой другой
+    // e.code не залежить від розкладки: працює і на українській, і на будь-якій іншій
     const isCopy = e.ctrlKey && (e.code === 'KeyC' || e.key === 'c' || e.key === 'с');
     const isPaste = e.ctrlKey && (e.code === 'KeyV' || e.key === 'v' || e.key === 'в');
 
@@ -600,7 +600,7 @@ function copySelection() {
 function pasteSelection() {
     if (!clipboardAtoms || clipboardAtoms.atoms.length === 0) return;
 
-    // Центр скопированной молекулы — чтобы «призрак» появился под курсором
+    // Центр скопійованої молекули — щоб «привид» з'явився під курсором
     let cx = 0, cy = 0;
     clipboardAtoms.atoms.forEach(a => { cx += a.x; cy += a.y; });
     cx /= clipboardAtoms.atoms.length;
@@ -649,7 +649,7 @@ function confirmPaste() {
     createFeedbackEffect('#00ff00', 3);
 }
 
-// Scene serialization
+// Серіалізація сцени
 function serializeScene() {
     return JSON.stringify({
         atoms: atoms.map(a => ({
